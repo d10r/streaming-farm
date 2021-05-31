@@ -52,12 +52,12 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
     // minAge, interest per week per million
     // both array elements need to be monotonically increasing, element [0][0] needs to be 0.
     uint32[][] _rewardSchedule = [
-        [0*DAYS,1000], // level 1: day 0+, 0.1%
-        [7*DAYS, 2000], // level 2: day 7+, 0,2%
-        [30*DAYS, 3000], // level 3: day 30+, 0,3%
-        [90*DAYS, 4500], // level 4: day 90+, 0,45%
-        [180*DAYS, 6000], // level 5: day 180+, 0,6%
-        [360*DAYS, 8000] // level 6: day 360+, 0,8%
+        [0*DAYS,2000], // level 1: day 0+, 0.2%
+        [7*DAYS, 4000], // level 2: day 7+, 0,4%
+        [30*DAYS, 6000], // level 3: day 30+, 0,6%
+        [90*DAYS, 9000], // level 4: day 90+, 0,9%
+        [180*DAYS, 12000], // level 5: day 180+, 1,2%
+        [360*DAYS, 16000] // level 6: day 360+, 1,6%
     ];
 
     uint256 _maxAggregateFlowRate;

@@ -33,7 +33,14 @@ contract("StreamingFarm", accounts => {
     const SECONDS_PER_DAY = 3600*24;
     const SECONDS_PER_WEEK = SECONDS_PER_DAY*7;
 
-    const MAX_ALLOWED_CUM_FLOWRATE = 1000000;
+    const LEVEL1_WEEKLY_INTEREST = 0.2;
+    const LEVEL2_WEEKLY_INTEREST = 0.4;
+    const LEVEL3_WEEKLY_INTEREST = 0.6;
+    const LEVEL4_WEEKLY_INTEREST = 0.9;
+    const LEVEL5_WEEKLY_INTEREST = 1.2;
+    const LEVEL6_WEEKLY_INTEREST = 1.6;
+
+    const MAX_ALLOWED_CUM_FLOWRATE = 1E6; // 31,536E12 wad per year
 
     const errorHandler = err => {
         if (err) throw err;
@@ -45,7 +52,9 @@ contract("StreamingFarm", accounts => {
         // TODO: dynamically determine the resolver addr in order to get rid of this constraint
         let TEST_RESOLVER_ADDR = "0x085eAc4a28e4a72913d2FDcC886FB2614a9CB0B3";
         if ((await web3.eth.getCode(TEST_RESOLVER_ADDR)).length <= 2) {
-            console.log('no resolver found at expected address. In order to reuse an SF deployment across test runs, start ganache with -m "arch web seek click tomato coconut pistol category attend absent gossip news"');
+            console.log('no resolver found at expected address. In order to reuse an SF deployment across test runs, ' +
+                'start ganache with -m "arch web seek click tomato coconut pistol category attend absent gossip news"' +
+                ' and run the test with "--network ganache"');
             console.log("deploying SF framework...");
             await deployFramework(errorHandler, {
                 web3,
@@ -154,6 +163,12 @@ contract("StreamingFarm", accounts => {
             assert.isAtLeast(parseInt(rewardSch[i][1]), parseInt(rewardSch[i-1][1]),
                 'rewardSchedule() interest not monotonically increasing');
         }
+        assert.equal(rewardSch[0][1], LEVEL1_WEEKLY_INTEREST*1E4, "level1 interest mismatch");
+        assert.equal(rewardSch[1][1], LEVEL2_WEEKLY_INTEREST*1E4, "level2 interest mismatch");
+        assert.equal(rewardSch[2][1], LEVEL3_WEEKLY_INTEREST*1E4, "level3 interest mismatch");
+        assert.equal(rewardSch[3][1], LEVEL4_WEEKLY_INTEREST*1E4, "level4 interest mismatch");
+        assert.equal(rewardSch[4][1], LEVEL5_WEEKLY_INTEREST*1E4, "level5 interest mismatch");
+        assert.equal(rewardSch[5][1], LEVEL6_WEEKLY_INTEREST*1E4, "level6 interest mismatch");
 
         const maxAggrFr = await farm.maxAggregateFlowrate();
         assert.equal(maxAggrFr.toString(), String(MAX_ALLOWED_CUM_FLOWRATE));
@@ -161,7 +176,7 @@ contract("StreamingFarm", accounts => {
 
     // JS can safely handle ints up to ~1E15. In order to simplify the code, amounts inside that bound are used
     const amountS1 = 1E12;
-    const expFrS1L1 = Math.floor(amountS1 * 0.1 / 100 / SECONDS_PER_WEEK);
+    const expFrS1L1 = Math.floor(amountS1 * LEVEL1_WEEKLY_INTEREST / 100 / SECONDS_PER_WEEK);
     let nftIdS1;
     it("user1 adds stake1 - check level 1 flowrate", async () => {
         // assumption: 1 LP = 1 rewardToken
@@ -202,7 +217,7 @@ contract("StreamingFarm", accounts => {
             'nextLevelTimestamp not in the future');
     });
 
-    const expFrS1L2 = Math.floor(amountS1 * 0.2 / 100 / SECONDS_PER_WEEK);
+    const expFrS1L2 = Math.floor(amountS1 * LEVEL2_WEEKLY_INTEREST / 100 / SECONDS_PER_WEEK);
     it("user1 upgrades stake1 to level 2", async () => {
         const canUpgrade = await farm.canUpgradeLevel(nftIdS1);
         assert.equal(canUpgrade, false, "canUpgrade should return false");
@@ -243,7 +258,7 @@ contract("StreamingFarm", accounts => {
     });
 
     const amountS2 = 1E12;
-    const expFrS2L1 = Math.floor(amountS2 * 0.1 / 100 / SECONDS_PER_WEEK);
+    const expFrS2L1 = Math.floor(amountS2 * LEVEL1_WEEKLY_INTEREST / 100 / SECONDS_PER_WEEK);
     let nftIdS2;
     it("user2 stakes - check user1 and user2 streams", async () => {
         // assumption: 1 LP = 1 rewardToken
@@ -270,7 +285,7 @@ contract("StreamingFarm", accounts => {
     });
 
     const amountS3 = 5E12;
-    const expFrS3L1 = Math.floor(amountS3 * 0.1 / 100 / SECONDS_PER_WEEK);
+    const expFrS3L1 = Math.floor(amountS3 * LEVEL1_WEEKLY_INTEREST / 100 / SECONDS_PER_WEEK);
     let nftIdS3;
     it("user1 adds stake3 - check cumulative flowrate", async () => {
         // assumption: 1 LP = 1 rewardToken
@@ -319,7 +334,7 @@ contract("StreamingFarm", accounts => {
     });
 
     const amountS4 = 2E12;
-    const expFrS4L1 = Math.floor(amountS4 * 0.1 / 100 / SECONDS_PER_WEEK);
+    const expFrS4L1 = Math.floor(amountS4 * LEVEL1_WEEKLY_INTEREST / 100 / SECONDS_PER_WEEK);
     let nftIdS4;
     it("user3 adds stake4 - check flowrate", async () => {
         const ret = await farm.stake(amountS4, {from: user3});
@@ -478,13 +493,13 @@ contract("StreamingFarm", accounts => {
     });
 
     it("new stake violating farm's max aggregate flowrate constraint should fail", async () => {
-        let amountS5 = 600E12; // base flowrate (0.1%) of 991800 - too much
+        let amountS5 = 300E12; // exceeds the limit with the level1 flowrate
         expectRevert(
             farm.stake(amountS5, {from: user1}),
             "StreamingFarm: not enough flowrate capacity left"
         );
 
-        amountS5 = 75E12; // max flowrate (0.8%) of 991800 - also too much
+        amountS5 = 35E12; // exceeds the limit with the level6 flowrate
         expectRevert(
             farm.stake(amountS5, {from: user1}),
             "StreamingFarm: not enough flowrate capacity left"
@@ -522,8 +537,8 @@ contract("StreamingFarm", accounts => {
     })
 
     // user3: s1, s3
-    const expFrS1L4 = Math.floor(amountS1 * 0.45 / 100 / SECONDS_PER_WEEK);
-    const expFrS3L4 = Math.floor(amountS3 * 0.45 / 100 / SECONDS_PER_WEEK);
+    const expFrS1L4 = Math.floor(amountS1 * LEVEL4_WEEKLY_INTEREST / 100 / SECONDS_PER_WEEK);
+    const expFrS3L4 = Math.floor(amountS3 * LEVEL4_WEEKLY_INTEREST / 100 / SECONDS_PER_WEEK);
     it("user2 upgrades stake1 and stake3 to level 4 - check flowrates", async () => {
         let canUpgradeS1 = await farm.canUpgradeLevel(nftIdS1);
         let canUpgradeS3 = await farm.canUpgradeLevel(nftIdS3);
@@ -567,8 +582,8 @@ contract("StreamingFarm", accounts => {
         //function getNFTInfo(uint256 nftId) external view returns(uint64 creationTimestamp, uint256 stakeAmount, uint256 referenceValue, address currentOwner, uint8 setLevel, uint8 availableLevel, uint64 nextLevelTimestamp);
     });
 
-    const expFrS1L6 = Math.floor(amountS1 * 0.8 / 100 / SECONDS_PER_WEEK);
-    const expFrS3L6 = Math.floor(amountS3 * 0.8 / 100 / SECONDS_PER_WEEK);
+    const expFrS1L6 = Math.floor(amountS1 * LEVEL6_WEEKLY_INTEREST / 100 / SECONDS_PER_WEEK);
+    const expFrS3L6 = Math.floor(amountS3 * LEVEL6_WEEKLY_INTEREST / 100 / SECONDS_PER_WEEK);
     it("user2 upgrades stake1 and stake3 to level 6 (max) - check flowrates", async () => {
         let canUpgradeS1 = await farm.canUpgradeLevel(nftIdS1);
         let canUpgradeS3 = await farm.canUpgradeLevel(nftIdS3);

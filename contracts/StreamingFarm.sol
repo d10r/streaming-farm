@@ -182,7 +182,6 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
 
     function canUpgradeLevel(uint256 nftId) public view override returns (bool){
         require(_nftProps[nftId].creationTimestamp != 0, "StreamingFarm: unknown NFT");
-        uint256 age = block.timestamp - _nftProps[nftId].creationTimestamp;
         int96 availFR = _getFlowRate(_nftProps[nftId].referenceValue, _getAvailableLevel(nftId));
         int96 curFR = _getFlowRate(_nftProps[nftId].referenceValue, _nftProps[nftId].currentLevel);
         return availFR != curFR;
@@ -190,7 +189,7 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
 
     // ================== IFarmNFTOwner =================
 
-    function onNFTTransfer(address from, address to, uint256 tokenId) public override {
+    function onNFTTransfer(address/* from*/, address/* to*/, uint256 tokenId) public override {
         require(msg.sender == address(farmNFT), "StreamingFarm: forbidden sender");
         _updateRewardStream(tokenId, true);
     }

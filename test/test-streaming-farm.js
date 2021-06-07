@@ -685,4 +685,6 @@ contract("StreamingFarm", accounts => {
             "StreamingFarm: withdrawal of stake tokens forbidden"
         );
     });
+
+    // TODO: test events for correct args
 });

@@ -37,7 +37,6 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
     struct NFTProps {
         uint256 stakingTokenAmount; // set once
         uint256 referenceValue; // set once
-        address lastOwner;
         uint64 creationTimestamp; // set once
         uint8 currentLevel;
     }
@@ -116,7 +115,6 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
 
         _nftProps[nftId] = NFTProps({
             creationTimestamp: uint64(block.timestamp),
-            lastOwner: msg.sender,
             stakingTokenAmount: amount,
             referenceValue: refVal,
             currentLevel: uint8(1)
@@ -126,15 +124,14 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
         _updateStream(msg.sender, flowRate);
 
         emit Stake(msg.sender, nftId, amount, refVal);
-        emit RewardStream(nftId, _nftProps[nftId].lastOwner, uint256(flowRate));
+        emit RewardStream(nftId, msg.sender, uint256(flowRate));
         return nftId;
     }
 
     function unstake(uint256 nftId) external override {
         require(farmNFT.ownerOf(nftId) == msg.sender, "StreamingFarm: not your NFT");
-        assert(_nftProps[nftId].lastOwner == farmNFT.ownerOf(nftId));
         int96 expectedCurrentFlowrate = _getFlowRate(_nftProps[nftId].referenceValue, _nftProps[nftId].currentLevel);
-        _updateStream(_nftProps[nftId].lastOwner, -expectedCurrentFlowrate);
+        _updateStream(farmNFT.ownerOf(nftId), -expectedCurrentFlowrate);
         stakingToken.transfer(msg.sender, _nftProps[nftId].stakingTokenAmount);
         farmNFT.burn(nftId);
         delete _nftProps[nftId];
@@ -143,7 +140,7 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
 
     // TODO: should we permission this to the NFT owner?
     function upgradeLevel(uint256 nftId) public override {
-        _updateRewardStream(nftId, false);
+        _updateRewardStream(nftId, farmNFT.ownerOf(nftId), false);
     }
 
     function rewardSchedule() external view override returns(uint32[][] memory) {
@@ -172,7 +169,7 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
         creationTimestamp = _nftProps[nftId].creationTimestamp;
         stakeAmount = _nftProps[nftId].stakingTokenAmount;
         referenceValue = _nftProps[nftId].referenceValue;
-        currentOwner = _nftProps[nftId].lastOwner;
+        currentOwner = farmNFT.ownerOf(nftId);
         setLevel = _nftProps[nftId].currentLevel;
         availableLevel = _getAvailableLevel(nftId);
         // since level count starts at 1, it points to the index of the next level (if not already in max level)
@@ -189,9 +186,9 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
 
     // ================== IFarmNFTOwner =================
 
-    function onNFTTransfer(address/* from*/, address/* to*/, uint256 tokenId) public override {
+    function onNFTTransfer(address from, address/* to*/, uint256 tokenId) public override {
         require(msg.sender == address(farmNFT), "StreamingFarm: forbidden sender");
-        _updateRewardStream(tokenId, true);
+        _updateRewardStream(tokenId, from, true);
     }
 
     string constant TOKEN_URI_BASE = "https://miva.minerva.digital/nft/v1/";
@@ -209,24 +206,23 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
 
     // makes sure the reward stream goes to the NFT owner with correct flowrate
     // no caller restriction
-    function _updateRewardStream(uint256 nftId, bool forceOwnerChange) internal {
+    function _updateRewardStream(uint256 nftId, address prevOwner, bool forceOwnerChange) internal {
         require(_nftProps[nftId].creationTimestamp != 0, "StreamingFarm: unknown NFT");
         int96 expectedCurrentFlowRate = _getFlowRate(_nftProps[nftId].referenceValue, _nftProps[nftId].currentLevel);
         uint8 newLevel = _getAvailableLevel(nftId);
         int96 targetFlowRate = _getFlowRate(_nftProps[nftId].referenceValue, newLevel);
-        if (farmNFT.ownerOf(nftId) != _nftProps[nftId].lastOwner || forceOwnerChange) {
+        if (farmNFT.ownerOf(nftId) != prevOwner || forceOwnerChange) {
             // reduce stream to previous owner
-            _updateStream(_nftProps[nftId].lastOwner, -expectedCurrentFlowRate);
-            _nftProps[nftId].lastOwner = farmNFT.ownerOf(nftId);
+            _updateStream(prevOwner, -expectedCurrentFlowRate);
             // start stream to new owner
-            _updateStream(_nftProps[nftId].lastOwner, targetFlowRate);
+            _updateStream(farmNFT.ownerOf(nftId), targetFlowRate);
         } else {
             // increase stream to existing owner
-            _updateStream(_nftProps[nftId].lastOwner, targetFlowRate - expectedCurrentFlowRate);
+            _updateStream(farmNFT.ownerOf(nftId), targetFlowRate - expectedCurrentFlowRate);
         }
         // TODO: does this cause an unnecessary extra SSTORE?
         _nftProps[nftId].currentLevel = newLevel;
-        emit RewardStream(nftId, _nftProps[nftId].lastOwner, uint256(targetFlowRate));
+        emit RewardStream(nftId, farmNFT.ownerOf(nftId), uint256(targetFlowRate));
     }
 
     function _getFlowRate(uint256 referenceValue, uint8 level) internal view returns(int96) {

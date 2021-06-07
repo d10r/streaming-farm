@@ -16,7 +16,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniswapV2Pair } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
+import "./StringLib.sol";
 
 /*
 * Mints NFTs for UniswapV2Pair tokens.
@@ -195,6 +195,8 @@ contract StreamingFarm is IStreamingFarm, IFarmNFTOwner, Ownable {
     function getNftTokenURI(uint256 tokenId) external view override returns (string memory uri) {
         return string(abi.encodePacked(
             TOKEN_URI_BASE,
+            Strings.toHexString(uint256(address(stakingToken))),
+            "/",
             tokenId.toString(),
             '?creationTimestamp=', uint256(_nftProps[tokenId].creationTimestamp).toString(),
             '&stakeAmount=', _nftProps[tokenId].stakingTokenAmount.toString(),
